@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF分析助手</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .file-input-container {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            cursor: pointer;
+        }
+        .file-input-label {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #3498db;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .file-input-label:hover {
+            background: #2980b9;
+        }
+        #pdfFile {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .file-name {
+            margin-left: 10px;
+            font-style: italic;
+        }
+        .pdf-status {
+            color: #27ae60;
+            margin-top: 10px;
+            font-style: italic;
+            display: none;
+        }
+        .error {
+            color: #e74c3c;
+            margin-top: 10px;
+            display: none;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top-color: #3498db;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* 聊天框样式 */
+        .chat-container {
+            margin-top: 30px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .chat-header {
+            background: #3498db;
+            color: white;
+            padding: 10px 15px;
+            font-weight: bold;
+        }
+        .chat-messages {
+            height: 300px;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f9f9f9;
+        }
+        .message {
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .message-bubble {
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .user-message {
+            margin-left: auto;
+            text-align: right;
+        }
+        .user-message .message-bubble {
+            background: #3498db;
+            color: white;
+            border-radius: 15px 15px 0 15px;
+            float: right;
+        }
+        .bot-message .message-bubble {
+            background: #e1e1e1;
+            color: #333;
+            border-radius: 15px 15px 15px 0;
+            float: left;
+        }
+        .message::after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+        .chat-input {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ddd;
+            background: white;
+        }
+        #messageInput {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            outline: none;
+        }
+        #sendButton {
+            margin-left: 10px;
+            padding: 8px 15px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+        #sendButton:hover {
+            background: #2980b9;
+        }
+        .chat-loading {
+            text-align: center;
+            padding: 10px;
+            display: none;
+        }
+        .chat-loading-dots {
+            display: inline-block;
+        }
+        .chat-loading-dots span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #3498db;
+            border-radius: 50%;
+            margin: 0 3px;
+            animation: dots 1.5s infinite;
+        }
+        .chat-loading-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .chat-loading-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes dots {
+            0%, 80%, 100% { transform: scale(0); opacity: 0; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF分析助手</h1>
+        
+        <div class="form-group">
+            <div class="file-input-container">
+                <label class="file-input-label">选择PDF文件</label>
+                <input type="file" id="pdfFile" accept=".pdf">
+            </div>
+            <span class="file-name" id="fileName"></span>
+            <div class="pdf-status" id="pdfStatus"></div>
+        </div>
+        
+        <div class="error" id="errorMessage"></div>
+        
+        <!-- 添加一个更明显的模式切换开关 -->
+        <div class="form-group">
+            <div class="mode-info-container">
+                <div class="mode-title">使用模式说明</div>
+                <div class="mode-list">
+                    <div style="margin-bottom:5px"><b>模式一 (默认)：通过服务器</b> - 服务器处理PDF和问题，需要服务器运行</div>
+                    <div style="margin-bottom:5px"><b>模式二：直接使用Kimi</b> - 勾选聊天框顶部左侧的"直接使用Kimi"选项，前端直接调用API，无需服务器</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 聊天界面 -->
+        <div class="chat-container">
+            <div class="chat-header">聊天对话</div>
+            <div class="chat-messages" id="chatMessages">
+                <!-- 欢迎消息 -->
+                <div class="message bot-message">
+                    <div class="message-bubble">
+                        欢迎使用PDF分析助手！您可以：<br>1. 直接在下方输入问题进行提问<br>2. 上传PDF文件后提问，获得基于PDF内容的精准回答
+                    </div>
+                </div>
+            </div>
+            <div class="chat-loading" id="chatLoading">
+                <div class="chat-loading-dots">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+            <div class="chat-input">
+                <input type="text" id="messageInput" placeholder="输入您的问题...">
+                <button id="sendButton">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sessionId = null;
+        let selectedPdfFile = null; // 存储选择的PDF文件
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const pdfFileInput = document.getElementById('pdfFile');
+            const fileNameDisplay = document.getElementById('fileName');
+            const pdfStatus = document.getElementById('pdfStatus');
+            const errorMessage = document.getElementById('errorMessage');
+            const chatMessages = document.getElementById('chatMessages');
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+            const chatLoading = document.getElementById('chatLoading');
+            
+            // 定义服务器URL
+            const serverUrl = 'http://localhost:3000';
+            
+            // 添加调试日志功能
+            const DEBUG = true; // 设置为false可以禁用所有调试日志
+            
+            function debugLog(...args) {
+                if (DEBUG) {
+                    console.log('[DEBUG]', ...args);
+                }
+            }
+            
+            // 日志分组函数，便于在控制台中组织日志
+            function debugGroup(groupName) {
+                if (DEBUG) {
+                    console.group(`[DEBUG] ${groupName}`);
+                }
+            }
+            
+            function debugGroupEnd() {
+                if (DEBUG) {
+                    console.groupEnd();
+                }
+            }
+            
+            // 记录请求/响应对象（去除长数据）
+            function logRequestResponse(obj, type = 'request') {
+                if (!DEBUG) return;
+                
+                // 创建一个克隆对象以避免修改原始对象
+                const clone = JSON.parse(JSON.stringify(obj));
+                
+                // 如果是包含文件的请求，替换长base64为摘要信息
+                if (clone.files && clone.files.length > 0) {
+                    clone.files = clone.files.map(file => {
+                        if (file.data && file.data.length > 100) {
+                            return {
+                                ...file,
+                                data: `[Base64 data: ${file.data.length} chars]`,
+                                data_preview: file.data.substring(0, 50) + '...'
+                            };
+                        }
+                        return file;
+                    });
+                }
+                
+                // 记录请求/响应对象
+                console.log(`[DEBUG] ${type.toUpperCase()}:`, clone);
+                
+                // 返回克隆对象以允许链式调用
+                return clone;
+            }
+            
+            // 修改欢迎消息，更清晰地表明可以直接提问
+            const welcomeMessage = document.querySelector('.bot-message .message-bubble');
+            welcomeMessage.innerHTML = '欢迎使用PDF分析助手！您可以：<br>1. 直接在下方输入问题进行提问<br>2. 上传PDF文件后提问，获得基于PDF内容的精准回答';
+            
+            // 添加一个更明显的模式切换开关
+            const bigSwitchContainer = document.createElement('div');
+            bigSwitchContainer.style.display = 'flex';
+            bigSwitchContainer.style.alignItems = 'center';
+            bigSwitchContainer.style.justifyContent = 'center';
+            bigSwitchContainer.style.marginBottom = '15px';
+            bigSwitchContainer.style.padding = '10px';
+            bigSwitchContainer.style.backgroundColor = '#e8f4fc';
+            bigSwitchContainer.style.borderRadius = '5px';
+            bigSwitchContainer.style.border = '1px solid #3498db';
+            
+            const bigModeSwitch = document.createElement('div');
+            bigModeSwitch.style.display = 'flex';
+            bigModeSwitch.style.alignItems = 'center';
+            
+            const bigDirectKimiCheckbox = document.createElement('input');
+            bigDirectKimiCheckbox.type = 'checkbox';
+            bigDirectKimiCheckbox.id = 'bigDirectKimiCheckbox';
+            bigDirectKimiCheckbox.style.width = '20px';
+            bigDirectKimiCheckbox.style.height = '20px';
+            bigDirectKimiCheckbox.style.marginRight = '10px';
+            
+            const bigDirectKimiLabel = document.createElement('label');
+            bigDirectKimiLabel.htmlFor = 'bigDirectKimiCheckbox';
+            bigDirectKimiLabel.innerHTML = '<b>直接使用Kimi模式</b>（无需启动服务器，直接通过浏览器调用Kimi API）';
+            bigDirectKimiLabel.style.fontSize = '16px';
+            bigDirectKimiLabel.style.color = '#333';
+            
+            bigModeSwitch.appendChild(bigDirectKimiCheckbox);
+            bigModeSwitch.appendChild(bigDirectKimiLabel);
+            bigSwitchContainer.appendChild(bigModeSwitch);
+            
+            // 插入到h1后面
+            document.querySelector('h1').after(bigSwitchContainer);
+            
+            // 添加模式选择提示区域
+            const modeInfoContainer = document.createElement('div');
+            modeInfoContainer.style.marginTop = '15px';
+            modeInfoContainer.style.marginBottom = '15px';
+            modeInfoContainer.style.padding = '10px';
+            modeInfoContainer.style.backgroundColor = '#f8f9fa';
+            modeInfoContainer.style.borderRadius = '5px';
+            modeInfoContainer.style.border = '1px solid #ddd';
+            modeInfoContainer.style.fontSize = '14px';
+            
+            const modeTitle = document.createElement('div');
+            modeTitle.style.fontWeight = 'bold';
+            modeTitle.style.marginBottom = '8px';
+            modeTitle.textContent = '使用模式说明';
+            
+            const modeList = document.createElement('div');
+            modeList.innerHTML = `
+                <div style="margin-bottom:5px"><b>模式一 (默认)：通过服务器</b> - 服务器处理PDF和问题，需要服务器运行</div>
+                <div style="margin-bottom:5px"><b>模式二：直接使用Kimi</b> - 勾选聊天框顶部左侧的"直接使用Kimi"选项，前端直接调用API，无需服务器</div>
+            `;
+            
+            modeInfoContainer.appendChild(modeTitle);
+            modeInfoContainer.appendChild(modeList);
+            
+            // 插入到form-group后面
+            document.querySelector('.form-group').after(modeInfoContainer);
+            
+            // 在UI上显示当前会话状态
+            function updateSessionStatus() {
+                // 创建或获取状态指示器
+                let statusIndicator = document.getElementById('sessionStatusIndicator');
+                if (!statusIndicator) {
+                    statusIndicator = document.createElement('div');
+                    statusIndicator.id = 'sessionStatusIndicator';
+                    statusIndicator.style.position = 'absolute';
+                    statusIndicator.style.top = '10px';
+                    statusIndicator.style.right = '10px';
+                    statusIndicator.style.padding = '5px 10px';
+                    statusIndicator.style.borderRadius = '4px';
+                    statusIndicator.style.fontSize = '12px';
+                    statusIndicator.style.fontWeight = 'bold';
+                    document.querySelector('.chat-header').appendChild(statusIndicator);
+                }
+                
+                if (sessionId && selectedPdfFile) {
+                    // 有会话ID和PDF文件
+                    statusIndicator.textContent = '📄 PDF模式';
+                    statusIndicator.style.backgroundColor = '#27ae60';
+                    statusIndicator.style.color = 'white';
+                } else if (sessionId) {
+                    // 只有会话ID，没有PDF
+                    statusIndicator.textContent = '💬 一般聊天模式';
+                    statusIndicator.style.backgroundColor = '#3498db';
+                    statusIndicator.style.color = 'white';
+                } else {
+                    // 没有会话
+                    statusIndicator.textContent = '⚪ 未开始会话';
+                    statusIndicator.style.backgroundColor = '#95a5a6';
+                    statusIndicator.style.color = 'white';
+                }
+            }
+            
+            // 初始更新状态
+            updateSessionStatus();
+            
+            // 监听文件选择
+            pdfFileInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    const file = this.files[0];
+                    
+                    // 检查文件类型
+                    if (file.type !== 'application/pdf') {
+                        showError('请选择有效的PDF文件');
+                        selectedPdfFile = null;
+                        fileNameDisplay.textContent = '';
+                        pdfStatus.style.display = 'none';
+                        return;
+                    }
+                    
+                    // 保存文件信息
+                    selectedPdfFile = file;
+                    fileNameDisplay.textContent = file.name;
+                    pdfStatus.textContent = '已选择PDF文件，请在聊天框中提问';
+                    pdfStatus.style.display = 'block';
+                    errorMessage.style.display = 'none';
+                } else {
+                    selectedPdfFile = null;
+                    fileNameDisplay.textContent = '';
+                    pdfStatus.style.display = 'none';
+                }
+            });
+            
+            // 发送聊天消息
+            sendButton.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            function sendMessage() {
+                const message = messageInput.value.trim();
+                if (!message) return;
+                
+                debugGroup('发送新消息');
+                debugLog('用户输入:', message);
+                debugLog('当前会话状态:', { 
+                    sessionId, 
+                    hasPdf: !!selectedPdfFile, 
+                    directMode: bigDirectKimiCheckbox.checked 
+                });
+                
+                // 添加用户消息到聊天界面
+                addMessage(message, 'user');
+                
+                // 清空输入
+                messageInput.value = '';
+                
+                // 显示加载中
+                chatLoading.style.display = 'block';
+                
+                // 检查是否有PDF文件（未上传过）或已有会话ID（已上传过）
+                if (selectedPdfFile && !sessionId) {
+                    debugLog('首次发送PDF和问题');
+                    // 有PDF文件但没有会话ID，首次发送PDF和问题
+                    sendPdfWithQuestion(selectedPdfFile, message);
+                } else {
+                    debugLog('发送常规聊天消息');
+                    // 没有PDF文件或已有会话ID，只发送问题
+                    // 会话ID保证了对话上下文中包含之前上传的PDF信息
+                    sendChatMessage(message);
+                }
+                debugGroupEnd();
+            }
+            
+            // 添加直连Kimi选项
+            const headerElement = document.querySelector('.chat-header');
+            const directKimiContainer = document.createElement('div');
+            directKimiContainer.style.position = 'absolute';
+            directKimiContainer.style.left = '10px';
+            directKimiContainer.style.display = 'flex';
+            directKimiContainer.style.alignItems = 'center';
+            
+            const directKimiCheckbox = document.createElement('input');
+            directKimiCheckbox.type = 'checkbox';
+            directKimiCheckbox.id = 'directKimiCheckbox';
+            directKimiCheckbox.style.marginRight = '5px';
+            
+            const directKimiLabel = document.createElement('label');
+            directKimiLabel.htmlFor = 'directKimiCheckbox';
+            directKimiLabel.textContent = '直接使用Kimi';
+            directKimiLabel.style.fontSize = '12px';
+            directKimiLabel.style.color = 'white';
+            
+            directKimiContainer.appendChild(directKimiCheckbox);
+            directKimiContainer.appendChild(directKimiLabel);
+            headerElement.appendChild(directKimiContainer);
+            
+            // 在API密钥输入
+            const apiKeyContainer = document.createElement('div');
+            apiKeyContainer.style.display = 'none';
+            apiKeyContainer.style.marginTop = '10px';
+            apiKeyContainer.style.padding = '10px';
+            apiKeyContainer.style.backgroundColor = '#f8f9fa';
+            apiKeyContainer.style.borderRadius = '5px';
+            
+            const apiKeyInput = document.createElement('input');
+            apiKeyInput.type = 'text';
+            apiKeyInput.id = 'kimiApiKey';
+            apiKeyInput.placeholder = '输入您的Kimi API密钥';
+            apiKeyInput.style.width = '100%';
+            apiKeyInput.style.padding = '8px';
+            apiKeyInput.style.border = '1px solid #ddd';
+            apiKeyInput.style.borderRadius = '4px';
+            apiKeyInput.value = 'sk-gMw8OXgmJaCiaQgwqfaPrzCZED06OiRX2fMe4AT9UF2hVzNz'; // 默认值，用户可以修改
+            
+            apiKeyContainer.appendChild(apiKeyInput);
+            
+            // 将API密钥输入框放在大开关下面
+            bigSwitchContainer.appendChild(apiKeyContainer);
+            
+            // 监听大开关变化
+            bigDirectKimiCheckbox.addEventListener('change', function() {
+                apiKeyContainer.style.display = this.checked ? 'block' : 'none';
+                // 同步两个开关状态
+                if (directKimiCheckbox) {
+                    directKimiCheckbox.checked = this.checked;
+                }
+            });
+            
+            // 同步两个复选框的状态
+            directKimiCheckbox.addEventListener('change', function() {
+                bigDirectKimiCheckbox.checked = this.checked;
+                apiKeyContainer.style.display = this.checked ? 'block' : 'none';
+            });
+            
+            // 修改发送PDF和问题的函数，支持直接调用Kimi API
+            function sendPdfWithQuestion(pdfFile, question) {
+                debugGroup('PDF上传和问题处理');
+                debugLog('PDF文件信息:', { 
+                    name: pdfFile.name, 
+                    size: pdfFile.size, 
+                    type: pdfFile.type 
+                });
+                debugLog('问题:', question);
+                debugLog('模式:', bigDirectKimiCheckbox.checked ? '直接使用Kimi' : '通过服务器');
+                
+                // 检查是否直接使用Kimi API
+                if (bigDirectKimiCheckbox.checked) {
+                    debugLog('使用直接模式处理PDF');
+                    debugGroupEnd();
+                    return sendDirectToKimi(pdfFile, question);
+                }
+                
+                // 创建FormData对象
+                const formData = new FormData();
+                formData.append('pdfFile', pdfFile);
+                formData.append('initialQuestion', question);
+                
+                debugLog('准备发送到服务器', { 
+                    url: `${serverUrl}/analyze-pdf`,
+                    pdfName: pdfFile.name,
+                    questionLength: question.length
+                });
+                
+                // 发送请求
+                fetch(`${serverUrl}/analyze-pdf`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    debugLog('服务器响应状态:', response.status, response.statusText);
+                    return response.json();
+                })
+                .then(data => {
+                    chatLoading.style.display = 'none';
+                    debugLog('服务器返回数据:', data);
+                    
+                    if (data.error) {
+                        debugLog('处理错误:', data.error);
+                        addSystemMessage('错误: ' + data.error);
+                        debugGroupEnd();
+                        return;
+                    }
+                    
+                    // 保存会话ID
+                    sessionId = data.sessionId;
+                    debugLog('会话已创建, ID:', sessionId);
+                    
+                    // 更新会话状态指示器
+                    updateSessionStatus();
+                    
+                    // 添加系统消息，指示PDF已分析
+                    addSystemMessage(`PDF文件"${pdfFile.name}"已分析，上下文已保存在对话中`);
+                    
+                    // 显示问题的回答
+                    if (data.questionReply) {
+                        debugLog('显示问题回答');
+                        addMessage(data.questionReply, 'bot');
+                    } else {
+                        // 如果没有特定问题的回答，显示PDF分析结果
+                        debugLog('显示PDF分析结果');
+                        addMessage(data.result, 'bot');
+                    }
+                    
+                    // 更新状态信息，但不清除PDF文件引用
+                    // 我们保留PDF文件引用，以便用户知道当前对话与哪个PDF相关联
+                    pdfStatus.textContent = 'PDF已分析，上下文已保存在对话中';
+                    pdfStatus.style.color = '#2980b9';
+                    
+                    // 禁用PDF文件输入，防止用户在同一会话中上传新PDF
+                    // 如果要上传新PDF，需要刷新页面开始新会话
+                    pdfFileInput.disabled = true;
+                    document.querySelector('.file-input-label').style.backgroundColor = '#95a5a6';
+                    document.querySelector('.file-input-label').style.cursor = 'not-allowed';
+                    
+                    // 添加一个清除PDF按钮，允许用户开始新会话
+                    if (!document.getElementById('clearPdfBtn')) {
+                        debugLog('添加清除PDF按钮');
+                        const clearBtn = document.createElement('button');
+                        clearBtn.id = 'clearPdfBtn';
+                        clearBtn.textContent = '清除PDF (开始新会话)';
+                        clearBtn.style.marginLeft = '10px';
+                        clearBtn.style.padding = '5px 10px';
+                        clearBtn.style.backgroundColor = '#e74c3c';
+                        clearBtn.style.color = 'white';
+                        clearBtn.style.border = 'none';
+                        clearBtn.style.borderRadius = '3px';
+                        clearBtn.style.cursor = 'pointer';
+                        
+                        clearBtn.addEventListener('click', function() {
+                            debugLog('清除PDF和会话');
+                            // 清除会话和PDF
+                            sessionId = null;
+                            selectedPdfFile = null;
+                            
+                            // 重置UI状态
+                            fileNameDisplay.textContent = '';
+                            pdfStatus.style.display = 'none';
+                            pdfFileInput.disabled = false;
+                            document.querySelector('.file-input-label').style.backgroundColor = '#3498db';
+                            document.querySelector('.file-input-label').style.cursor = 'pointer';
+                            
+                            // 更新会话状态指示器
+                            updateSessionStatus();
+                            
+                            // 移除清除按钮
+                            this.remove();
+                            
+                            // 添加系统消息
+                            addSystemMessage('PDF上下文已清除，您已开始新会话');
+                        });
+                        
+                        document.querySelector('.form-group').appendChild(clearBtn);
+                    }
+                    debugGroupEnd();
+                })
+                .catch(error => {
+                    chatLoading.style.display = 'none';
+                    debugLog('请求错误:', error);
+                    addSystemMessage('发送消息失败: ' + error.message);
+                    debugGroupEnd();
+                });
+            }
+            
+            // 添加直接调用Kimi API的函数
+            function sendDirectToKimi(pdfFile, question) {
+                debugGroup('直接调用Kimi API');
+                
+                // 显示加载中
+                chatLoading.style.display = 'block';
+                
+                // 获取API密钥
+                const apiKey = document.getElementById('kimiApiKey').value.trim();
+                if (!apiKey) {
+                    debugLog('错误: 缺少API密钥');
+                    addSystemMessage('错误: 请输入有效的Kimi API密钥');
+                    chatLoading.style.display = 'none';
+                    debugGroupEnd();
+                    return;
+                }
+                
+                debugLog('PDF文件信息:', {
+                    name: pdfFile.name,
+                    size: pdfFile.size,
+                    type: pdfFile.type,
+                    lastModified: new Date(pdfFile.lastModified).toISOString()
+                });
+                
+                // 读取PDF文件
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const base64Data = e.target.result.split(',')[1]; // 移除数据URL前缀
+                    debugLog(`PDF文件读取完成，Base64长度: ${base64Data.length}`);
+                    debugLog(`Base64数据前缀: ${base64Data.substring(0, 30)}...`);
+                    
+                    // 准备请求数据 - 使用正确的格式直接发送PDF文件
+                    const requestData = {
+                        model: 'moonshot-v1-32k',
+                        messages: [
+                            { 
+                                role: 'system', 
+                                content: '你是一个专业的PDF文档分析助手。请详细分析用户上传的PDF文件并直接回答他们的问题。不要说你会阅读文件，因为你已经可以直接看到文件内容了。' 
+                            },
+                            { role: 'user', content: question || '请分析这个PDF文件' }
+                        ],
+                        files: [
+                            {
+                                data: base64Data,
+                                type: 'application/pdf'
+                            }
+                        ]
+                    };
+                    
+                    // 记录请求数据（去除长base64字符串）
+                    logRequestResponse(requestData);
+                    
+                    debugLog('发送请求到API端点: https://api.moonshot.cn/v1/chat/completions');
+                    
+                    // 直接调用Kimi API
+                    fetch('https://api.moonshot.cn/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify(requestData)
+                    })
+                    .then(response => {
+                        debugLog('API响应状态:', response.status, response.statusText);
+                        return response.json();
+                    })
+                    .then(data => {
+                        chatLoading.style.display = 'none';
+                        debugLog('API响应数据:');
+                        logRequestResponse(data, 'response');
+                        
+                        if (data.error) {
+                            debugLog('API返回错误:', data.error);
+                            addSystemMessage(`错误: ${data.error.message || data.error}`);
+                            debugGroupEnd();
+                            return;
+                        }
+                        
+                        // 创建会话上下文，保存PDF内容以供后续使用
+                        if (!sessionId) {
+                            sessionId = Date.now().toString();
+                            
+                            // 保存PDF内容到本地缓存，用于后续聊天
+                            localStorage.setItem(`pdf_${sessionId}`, base64Data);
+                            debugLog('创建会话ID并保存PDF到本地存储:', sessionId);
+                        }
+                        
+                        // 添加系统消息，指示PDF已分析
+                        addSystemMessage(`PDF文件"${pdfFile.name}"已直接通过Kimi API分析`);
+                        
+                        // 显示回答
+                        const reply = data.choices && data.choices[0] && data.choices[0].message ? 
+                            data.choices[0].message.content : '无法获取回答';
+                            
+                        debugLog('AI回复:', reply.length > 200 ? reply.substring(0, 200) + '...' : reply);
+                        addMessage(reply, 'bot');
+                        
+                        // 将此PDF保存为当前会话中的文件
+                        selectedPdfFile = pdfFile;
+                        
+                        // 更新会话状态指示器
+                        updateSessionStatus();
+                        
+                        // 更新UI状态
+                        pdfStatus.textContent = 'PDF已通过Kimi API分析，您可以继续提问';
+                        pdfStatus.style.color = '#2980b9';
+                        pdfStatus.style.display = 'block';
+                        debugGroupEnd();
+                    })
+                    .catch(error => {
+                        chatLoading.style.display = 'none';
+                        debugLog('API调用异常:', error);
+                        addSystemMessage(`直接调用Kimi API失败: ${error.message}`);
+                        debugGroupEnd();
+                    });
+                };
+                
+                reader.onerror = function(error) {
+                    chatLoading.style.display = 'none';
+                    debugLog('PDF文件读取错误:', error);
+                    addSystemMessage('错误: 无法读取PDF文件');
+                    debugGroupEnd();
+                };
+                
+                // 开始读取文件
+                debugLog('开始读取PDF文件...');
+                reader.readAsDataURL(pdfFile);
+            }
+            
+            // 修改聊天消息发送函数
+            const originalSendChatMessage = sendChatMessage;
+            sendChatMessage = function(message) {
+                debugGroup('发送聊天消息');
+                debugLog('消息:', message);
+                debugLog('会话状态:', { 
+                    hasSession: !!sessionId, 
+                    hasPdf: !!selectedPdfFile, 
+                    directMode: bigDirectKimiCheckbox.checked 
+                });
+                
+                // 检查是否直接使用Kimi API
+                if (bigDirectKimiCheckbox.checked && selectedPdfFile) {
+                    debugLog('使用直接模式发送消息，包含PDF');
+                    debugGroupEnd();
+                    sendDirectToKimi(selectedPdfFile, message);
+                    return;
+                } else if (bigDirectKimiCheckbox.checked && sessionId) {
+                    // 如果之前上传过PDF并且使用直连模式，检查本地缓存中是否有PDF内容
+                    const savedPdf = localStorage.getItem(`pdf_${sessionId}`);
+                    
+                    if (savedPdf) {
+                        debugLog('使用本地缓存的PDF发送消息');
+                        
+                        // 显示加载中
+                        chatLoading.style.display = 'block';
+                        
+                        // 获取API密钥
+                        const apiKey = document.getElementById('kimiApiKey').value.trim();
+                        if (!apiKey) {
+                            debugLog('错误: 缺少API密钥');
+                            addSystemMessage('错误: 请输入有效的Kimi API密钥');
+                            chatLoading.style.display = 'none';
+                            debugGroupEnd();
+                            return;
+                        }
+                        
+                        // 准备请求数据 - 使用之前保存的PDF
+                        const requestData = {
+                            model: 'moonshot-v1-32k',
+                            messages: [
+                                { 
+                                    role: 'system', 
+                                    content: '你是一个专业的PDF文档分析助手。请根据之前上传的PDF文件内容回答用户问题。不要说你会阅读文件，因为你已经可以直接看到文件内容了。' 
+                                },
+                                { role: 'user', content: message }
+                            ],
+                            files: [
+                                {
+                                    data: savedPdf,
+                                    type: 'application/pdf'
+                                }
+                            ]
+                        };
+                        
+                        // 记录请求数据（去除长base64字符串）
+                        logRequestResponse(requestData);
+                        
+                        debugLog('使用缓存PDF发送请求到API端点');
+                        
+                        // 直接调用Kimi API
+                        fetch('https://api.moonshot.cn/v1/chat/completions', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${apiKey}`
+                            },
+                            body: JSON.stringify(requestData)
+                        })
+                        .then(response => {
+                            debugLog('API响应状态:', response.status, response.statusText);
+                            return response.json();
+                        })
+                        .then(data => {
+                            chatLoading.style.display = 'none';
+                            debugLog('API响应数据:');
+                            logRequestResponse(data, 'response');
+                            
+                            if (data.error) {
+                                debugLog('API返回错误:', data.error);
+                                addSystemMessage(`错误: ${data.error.message || data.error}`);
+                                debugGroupEnd();
+                                return;
+                            }
+                            
+                            // 显示回答
+                            const reply = data.choices && data.choices[0] && data.choices[0].message ? 
+                                data.choices[0].message.content : '无法获取回答';
+                                
+                            debugLog('AI回复:', reply.length > 200 ? reply.substring(0, 200) + '...' : reply);
+                            addMessage(reply, 'bot');
+                            debugGroupEnd();
+                        })
+                        .catch(error => {
+                            chatLoading.style.display = 'none';
+                            debugLog('API调用异常:', error);
+                            addSystemMessage(`直接调用Kimi API失败: ${error.message}`);
+                            debugGroupEnd();
+                        });
+                        
+                        return;
+                    }
+                }
+                
+                // 如果直接使用Kimi API且没有PDF文件
+                if (bigDirectKimiCheckbox.checked) {
+                    debugLog('直接模式，无PDF，发送普通聊天');
+                    
+                    // 显示加载中
+                    chatLoading.style.display = 'block';
+                    
+                    // 获取API密钥
+                    const apiKey = document.getElementById('kimiApiKey').value.trim();
+                    if (!apiKey) {
+                        debugLog('错误: 缺少API密钥');
+                        addSystemMessage('错误: 请输入有效的Kimi API密钥');
+                        chatLoading.style.display = 'none';
+                        debugGroupEnd();
+                        return;
+                    }
+                    
+                    // 准备请求数据
+                    const requestData = {
+                        model: 'moonshot-v1-8k',
+                        messages: [
+                            { role: 'system', content: '你是一个专业的PDF文档分析助手，可以回答关于PDF文件的一般性问题，也可以针对上传的PDF提供详细分析。当用户没有上传PDF文件时，请直接回答他们的问题，不要要求他们上传PDF。' },
+                            { role: 'user', content: message }
+                        ]
+                    };
+                    
+                    debugLog('请求数据:', requestData);
+                    
+                    // 直接调用Kimi API
+                    fetch('https://api.moonshot.cn/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify(requestData)
+                    })
+                    .then(response => {
+                        debugLog('API响应状态:', response.status, response.statusText);
+                        return response.json();
+                    })
+                    .then(data => {
+                        chatLoading.style.display = 'none';
+                        debugLog('API响应数据:', data);
+                        
+                        if (data.error) {
+                            debugLog('API返回错误:', data.error);
+                            addSystemMessage(`错误: ${data.error.message || data.error}`);
+                            debugGroupEnd();
+                            return;
+                        }
+                        
+                        // 显示回答
+                        const reply = data.choices && data.choices[0] && data.choices[0].message ? 
+                            data.choices[0].message.content : '无法获取回答';
+                            
+                        debugLog('AI回复:', reply.length > 200 ? reply.substring(0, 200) + '...' : reply);
+                        addMessage(reply, 'bot');
+                        debugGroupEnd();
+                    })
+                    .catch(error => {
+                        chatLoading.style.display = 'none';
+                        debugLog('API调用异常:', error);
+                        addSystemMessage(`直接调用Kimi API失败: ${error.message}`);
+                        debugGroupEnd();
+                    });
+                    
+                    return;
+                }
+                
+                debugLog('使用服务器模式发送消息');
+                // 原有的通过服务器发送逻辑
+                if (typeof originalSendChatMessage === 'function') {
+                    originalSendChatMessage(message);
+                } else {
+                    debugLog('错误: 原始sendChatMessage函数未定义');
+                    chatLoading.style.display = 'none';
+                    addSystemMessage('错误: 消息发送功能未正确初始化');
+                }
+                debugGroupEnd();
+            };
+            
+            // 添加消息到聊天界面
+            function addMessage(text, sender) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}-message`;
+                
+                const bubble = document.createElement('div');
+                bubble.className = 'message-bubble';
+                
+                // 处理Markdown中的换行符，将\n替换为<br>标签
+                bubble.innerHTML = text.replace(/\n/g, '<br>');
+                
+                messageDiv.appendChild(bubble);
+                chatMessages.appendChild(messageDiv);
+                
+                // 滚动到底部
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+            // 添加系统消息
+            function addSystemMessage(text) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message bot-message';
+                
+                const bubble = document.createElement('div');
+                bubble.className = 'message-bubble';
+                bubble.style.backgroundColor = '#f8f9fa';
+                bubble.style.fontStyle = 'italic';
+                
+                // 处理Markdown中的换行符，将\n替换为<br>标签
+                bubble.innerHTML = text.replace(/\n/g, '<br>');
+                
+                messageDiv.appendChild(bubble);
+                chatMessages.appendChild(messageDiv);
+                
+                // 滚动到底部
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+            // 显示错误信息
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html> 

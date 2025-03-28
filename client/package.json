@@ -1,0 +1,14 @@
+{
+  "name": "mcp-pdf-client",
+  "version": "1.0.0",
+  "description": "MCP客户端用于上传PDF并接收分析结果",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "form-data": "^4.0.0"
+  }
+} 

@@ -431,6 +431,19 @@
                     pdfStatus.textContent = '已选择PDF文件，请在聊天框中提问';
                     pdfStatus.style.display = 'block';
                     errorMessage.style.display = 'none';
+                    
+                    // 标记PDF文件已更改，用于聊天时判断
+                    this.setAttribute('data-changed', 'true');
+                    
+                    // 如果已经有会话，添加系统消息提示用户
+                    if (sessionId) {
+                        addSystemMessage('检测到新的PDF文件。发送下一条消息时将创建新会话，并使用新上传的PDF文件。');
+                        
+                        // 启用清除PDF按钮（如果存在）
+                        if (document.getElementById('clearPdfBtn')) {
+                            document.getElementById('clearPdfBtn').disabled = false;
+                        }
+                    }
                 } else {
                     selectedPdfFile = null;
                     fileNameDisplay.textContent = '';
@@ -471,6 +484,15 @@
                 if (selectedPdfFile && !sessionId) {
                     debugLog('首次发送PDF和问题');
                     // 有PDF文件但没有会话ID，首次发送PDF和问题
+                    sendPdfWithQuestion(selectedPdfFile, message);
+                } else if (selectedPdfFile && sessionId && pdfFileInput.getAttribute('data-changed') === 'true') {
+                    // 在聊天过程中插入了新的PDF文件
+                    debugLog('聊天过程中插入新PDF，创建新会话');
+                    // 重置会话ID以创建新会话
+                    sessionId = null;
+                    // 清除data-changed标记
+                    pdfFileInput.removeAttribute('data-changed');
+                    // 发送PDF和问题
                     sendPdfWithQuestion(selectedPdfFile, message);
                 } else {
                     debugLog('发送常规聊天消息');
@@ -598,6 +620,9 @@
                     // 更新会话状态指示器
                     updateSessionStatus();
                     
+                    // 清除PDF更改标记
+                    pdfFileInput.removeAttribute('data-changed');
+                    
                     // 添加系统消息，指示PDF已分析
                     addSystemMessage(`PDF文件"${pdfFile.name}"已分析，上下文已保存在对话中`);
                     
@@ -646,6 +671,8 @@
                             fileNameDisplay.textContent = '';
                             pdfStatus.style.display = 'none';
                             pdfFileInput.disabled = false;
+                            // 清除更改标记
+                            pdfFileInput.removeAttribute('data-changed');
                             document.querySelector('.file-input-label').style.backgroundColor = '#3498db';
                             document.querySelector('.file-input-label').style.cursor = 'pointer';
                             
@@ -775,6 +802,9 @@
                         // 更新会话状态指示器
                         updateSessionStatus();
                         
+                        // 清除PDF更改标记
+                        pdfFileInput.removeAttribute('data-changed');
+                        
                         // 更新UI状态
                         pdfStatus.textContent = 'PDF已通过Kimi API分析，您可以继续提问';
                         pdfStatus.style.color = '#2980b9';
@@ -799,6 +829,48 @@
                 // 开始读取文件
                 debugLog('开始读取PDF文件...');
                 reader.readAsDataURL(pdfFile);
+            }
+            
+            // 定义基本的聊天消息发送函数
+            function sendChatMessage(message) {
+                // 创建请求体
+                const requestBody = {
+                    sessionId: sessionId,
+                    message: message
+                };
+                
+                // 发送请求到服务器
+                fetch(`${serverUrl}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // 隐藏加载状态
+                    chatLoading.style.display = 'none';
+                    
+                    // 检查是否有错误
+                    if (data.error) {
+                        addSystemMessage('错误: ' + data.error);
+                        return;
+                    }
+                    
+                    // 如果有新的会话ID，保存它
+                    if (data.sessionId) {
+                        sessionId = data.sessionId;
+                        updateSessionStatus();
+                    }
+                    
+                    // 显示回复
+                    addMessage(data.reply, 'bot');
+                })
+                .catch(error => {
+                    chatLoading.style.display = 'none';
+                    addSystemMessage('发送消息失败: ' + error.message);
+                });
             }
             
             // 修改聊天消息发送函数
